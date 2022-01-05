@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>..\..\..\..\NeosVR\Install\app\0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>..\..\..\..\NeosVR\Install\app\Neos_Data\Managed\Assembly-CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="BaseX">
+      <HintPath>..\..\..\..\NeosVR\Install\app\Neos_Data\Managed\BaseX.dll</HintPath>
+    </Reference>
+    <Reference Include="FrooxEngine">
+      <HintPath>..\..\..\..\NeosVR\Install\app\Neos_Data\Managed\FrooxEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="NeosModLoader">
+      <HintPath>..\..\..\..\NeosVR\ModLoader\NeosModLoader.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>..\..\..\..\NeosVR\Install\app\UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityNeos">
+      <HintPath>..\..\..\..\NeosVR\Install\app\Neos_Data\Managed\UnityNeos.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>
