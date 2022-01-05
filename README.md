@@ -1,4 +1,4 @@
-# DisableLibVLC
+# IkCulling
 
 A [NeosModLoader](https://github.com/zkxs/NeosModLoader) mod for [Neos VR](https://neos.com/) that disables the IK of Users who are behind you or far away.
 
