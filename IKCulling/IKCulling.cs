@@ -46,7 +46,7 @@ namespace IkCulling
                         float3 dirToIk = (ikPos - playerPos).Normalized;
                         float3 viewDir = playerViewRot*float3.Forward;
 
-                        float dist = MathX.Distance(playerPos, ikPos)* __instance.LocalUserRoot.GlobalScale;
+                        float dist = MathX.Distance(playerPos, ikPos)/ __instance.LocalUserRoot.GlobalScale;
                         
 
                         float dot = MathX.Dot(dirToIk, viewDir);
@@ -56,7 +56,7 @@ namespace IkCulling
                             return false;
                         }
 
-                        if (dist > 3 && dot < 0.7f)
+                        if (dist > 4 && dot < 0.7f)
                         {
                             return false;
                         }
