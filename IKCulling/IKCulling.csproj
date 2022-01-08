@@ -18,7 +18,7 @@
       <HintPath>..\..\..\..\NeosVR\Install\app\Neos_Data\Managed\FrooxEngine.dll</HintPath>
     </Reference>
     <Reference Include="NeosModLoader">
-      <HintPath>..\..\..\..\NeosVR\ModLoader\NeosModLoader.dll</HintPath>
+      <HintPath>..\..\..\..\NeosVR\Install\app\NeosModLoader.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine">
       <HintPath>..\..\..\..\NeosVR\Install\app\UnityEngine.dll</HintPath>

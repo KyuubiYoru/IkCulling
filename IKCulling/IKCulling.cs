@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using HarmonyLib; // HarmonyLib comes included with a NeosModLoader install
 using NeosModLoader;
 using BaseX;
+using FrooxEngine;
 using FrooxEngine.FinalIK;
 
 
@@ -11,88 +13,131 @@ namespace IkCulling
     {
         public override string Name => "IkCulling";
         public override string Author => "KyuubiYoru";
-        public override string Version => "1.0.0";
+        public override string Version => "1.1.0";
         public override string Link => "https://github.com/KyuubiYoru/IkCulling";
+
+        internal static ModConfiguration Config;
+
+        internal static readonly ModConfigurationKey<bool> Enabled =
+            new ModConfigurationKey<bool>("Enabled", "IkCulling Enabled.", () => true);
+
+        internal static readonly ModConfigurationKey<bool> UseUserScale =
+            new ModConfigurationKey<bool>("UseUserScale", "Should user scale be used for Distance check.", () => false);
+
+        internal static readonly ModConfigurationKey<float> Fov = new ModConfigurationKey<float>("Fov",
+            "Field of view used for IkCulling, can be between 1 and -1.",
+            () => 0.7f, false, v => v <= 1f && v >= -1f);
+
+        internal static readonly ModConfigurationKey<float> MinRange =
+            new ModConfigurationKey<float>("_minRange", "Minimal range for IkCulling, useful in front of a mirror.",
+                () => 4);
+
+        internal static readonly ModConfigurationKey<float> MaxViewRange =
+            new ModConfigurationKey<float>("_maxViewRange", "Maximal view range where IkCulling is always enabled.",
+                () => 30);
+
+
+        public override ModConfigurationDefinition GetConfigurationDefinition()
+        {
+            List<ModConfigurationKey> keys = new List<ModConfigurationKey>();
+            keys.Add(Enabled);
+            keys.Add(Fov);
+            keys.Add(MinRange);
+            keys.Add(MaxViewRange);
+
+            return DefineConfiguration(new Version(1, 0, 0), keys);
+        }
 
         public override void OnEngineInit()
         {
-            Harmony harmony = new Harmony("IkCulling");
+            Config = GetConfiguration();
+
+            Harmony harmony = new Harmony("net.KyuubiYoru.IkCulling");
             harmony.PatchAll();
         }
 
 
-        [HarmonyPatch(typeof(VRIK))]
-        class IKCullingPatch
+        [HarmonyPatch(typeof(VRIKAvatar))]
+        public class IkCullingPatch
         {
             public static int IkCount = 0;
+            public static DynamicVariableSpace UserSpaceWorld;
 
             [HarmonyPrefix]
-            [HarmonyPatch("SolveIK")]
-            private static bool SolveIkPrefix(VRIK __instance)
+            [HarmonyPatch("OnCommonUpdate")]
+            private static bool OnCommonUpdatePrefix(VRIKAvatar __instance)
             {
                 try
                 {
+                    if (!Config.GetValue(Enabled))
+                    {
+                        return true; //IkCulling is Disabled
+                    }
+
                     if (!__instance.Enabled)
+                    {
+                        return false; //Ik is Disabled
+                    }
+
+                    if (__instance.IsUnderLocalUser)
+                    {
+                        return true; //Always Update local Ik
+                    }
+
+                    float3 playerPos = __instance.Slot.World.LocalUserGlobalPosition;
+                    floatQ playerViewRot = __instance.Slot.World.LocalUserViewRotation;
+                    float3 ikPos = __instance.Slot.GlobalPosition;
+
+                    float3 dirToIk = (ikPos - playerPos).Normalized;
+                    float3 viewDir = playerViewRot * float3.Forward;
+
+                    float dist = MathX.Distance(playerPos, ikPos);
+
+                    if (Config.GetValue(UseUserScale))
+                    {
+                        dist = dist / __instance.LocalUserRoot.GlobalScale;
+                    }
+
+                    float dot = MathX.Dot(dirToIk, viewDir);
+
+
+                    if (dist > Config.GetValue(MaxViewRange))
                     {
                         return false;
                     }
 
-                    if (!__instance.IsUnderLocalUser)
+                    if (dist > 4 && dot < Config.GetValue(Fov))
                     {
-                        float3 playerPos = __instance.Slot.World.LocalUserGlobalPosition;
-                        floatQ playerViewRot = __instance.Slot.World.LocalUserViewRotation;
-                        float3 ikPos = __instance.Slot.GlobalPosition;
-
-                        float3 dirToIk = (ikPos - playerPos).Normalized;
-                        float3 viewDir = playerViewRot*float3.Forward;
-
-                        float dist = MathX.Distance(playerPos, ikPos)/ __instance.LocalUserRoot.GlobalScale;
-                        
-
-                        float dot = MathX.Dot(dirToIk, viewDir);
-
-                        if (dist > 30)
-                        {
-                            return false;
-                        }
-
-                        if (dist > 4 && dot < 0.7f)
-                        {
-                            return false;
-                        }
-                        else
-                        {
-                            return true;
-                        }
-
-
-                        //IkThrottleData data = __instance.GetThrottleData();
-                        //if (data.SkippedFrames > 4)
-                        //{
-                        //    data.CurrentDeltaTime = __instance.Time.Delta;
-                        //    Traverse.Create(__instance.Time).Property("Delta").SetValue(__instance.Time.Delta + data.DeltaTimeOffset);
-                        //    data.Reset = true;
-                        //    return true;
-                        //}
-                        //else
-                        //{
-                        //    data.DeltaTimeOffset += __instance.Time.Delta;
-                        //    data.SkippedFrames++;
-                        //    return false; //Skip update
-                        //}
+                        return false;
                     }
 
-                    return true; //Always run the IK update on LocalUser
+                    return true;
+
+
+                    //IkThrottleData data = __instance.GetThrottleData();
+                    //if (data.SkippedFrames > 4)
+                    //{
+                    //    data.CurrentDeltaTime = __instance.Time.Delta;
+                    //    Traverse.Create(__instance.Time).Property("Delta").SetValue(__instance.Time.Delta + data.DeltaTimeOffset);
+                    //    data.Reset = true;
+                    //    return true;
+                    //}
+                    //else
+                    //{
+                    //    data.DeltaTimeOffset += __instance.Time.Delta;
+                    //    data.SkippedFrames++;
+                    //    return false; //Skip update
+                    //}
                 }
                 catch (Exception e)
                 {
-                    Error("Error in SolveIkPrefix");
-                    Error(e.Message);
-                    Error(e.StackTrace);
-                    Error(e);
+                    Debug("Error in OnCommonUpdatePrefix");
+                    Debug(e.Message);
+                    Debug(e.StackTrace);
                     return true;
                 }
             }
+
 
             //[HarmonyPostfix]
             //[HarmonyPatch("SolveIK")]
@@ -140,5 +185,6 @@ namespace IkCulling
             //    }
             //}
         }
+
     }
 }
