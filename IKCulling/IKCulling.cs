@@ -14,7 +14,7 @@ namespace IkCulling
     {
         public override string Name => "IkCulling";
         public override string Author => "KyuubiYoru";
-        public override string Version => "1.1.0";
+        public override string Version => "1.2.0";
         public override string Link => "https://github.com/KyuubiYoru/IkCulling";
 
         public static ModConfiguration Config;
@@ -26,12 +26,15 @@ namespace IkCulling
         public static readonly ModConfigurationKey<bool> Enabled =
             new ModConfigurationKey<bool>("Enabled", "IkCulling Enabled.", () => true);
 
+        public static readonly ModConfigurationKey<bool> AutoSaveConfig =
+            new ModConfigurationKey<bool>("AutoSaveConfig", "If true the Config gets saved after every change.", () => true);
+
         public static readonly ModConfigurationKey<bool> UseUserScale =
             new ModConfigurationKey<bool>("UseUserScale", "Should user scale be used for Distance check.", () => false);
 
         public static readonly ModConfigurationKey<float> Fov = new ModConfigurationKey<float>("Fov",
             "Field of view used for IkCulling, can be between 1 and -1.",
-            () => 0.7f, false, v => v <= 1f && v >= -1f);
+            () => 0.5f, false, v => v <= 1f && v >= -1f);
 
         public static readonly ModConfigurationKey<float> MinCullingRange =
             new ModConfigurationKey<float>("MinCullingRange",
@@ -56,10 +59,12 @@ namespace IkCulling
                 List<ModConfigurationKey> keys = new List<ModConfigurationKey>();
                 keys.Add(ConfigFileExist);
                 keys.Add(Enabled);
+                keys.Add(AutoSaveConfig);
                 keys.Add(UseUserScale);
                 keys.Add(Fov);
                 keys.Add(MinCullingRange);
                 keys.Add(MaxViewRange);
+                
 
                 return DefineConfiguration(new Version(1, 0, 0), keys);
             }
@@ -75,7 +80,7 @@ namespace IkCulling
         {
             try
             {
-                Harmony harmony = new Harmony("net.kyuubiyoru.IkCulling");
+                Harmony harmony = new Harmony("net.KyuubiYoru.IkCulling");
                 harmony.PatchAll();
 
                 Config = GetConfiguration();
@@ -104,6 +109,10 @@ namespace IkCulling
             _fov = Config.GetValue(Fov);
             _minCullingRange = Config.GetValue(MinCullingRange);
             _maxViewRange = Config.GetValue(MaxViewRange);
+            if (Config.GetValue(AutoSaveConfig)||Equals(configurationChangedEvent?.Key, AutoSaveConfig))
+            {
+                Config.Save(true);
+            }
         }
 
         [HarmonyPatch(typeof(VRIKAvatar))]
@@ -119,11 +128,12 @@ namespace IkCulling
                     {
                         return true; //IkCulling is Disabled
                     }
-                    
+
                     if (!__instance.Enabled)
                     {
                         return false; //Ik is Disabled
                     }
+
 
                     if (__instance.IsUnderLocalUser)
                     {
@@ -132,7 +142,8 @@ namespace IkCulling
 
                     float3 playerPos = __instance.Slot.World.LocalUserGlobalPosition;
                     floatQ playerViewRot = __instance.Slot.World.LocalUserViewRotation;
-                    float3 ikPos = __instance.Slot.GlobalPosition;
+                    float3 ikPos = __instance.ChestNode.Slot.GlobalPosition;
+                    
 
                     float3 dirToIk = (ikPos - playerPos).Normalized;
                     float3 viewDir = playerViewRot * float3.Forward;
