@@ -5,7 +5,7 @@ using NeosModLoader;
 using BaseX;
 using FrooxEngine;
 using FrooxEngine.FinalIK;
-using Leap.Unity;
+
 
 
 namespace IkCulling
@@ -14,7 +14,7 @@ namespace IkCulling
     {
         public override string Name => "IkCulling";
         public override string Author => "KyuubiYoru";
-        public override string Version => "1.2.0";
+        public override string Version => "1.3.0";
         public override string Link => "https://github.com/KyuubiYoru/IkCulling";
 
         public static ModConfiguration Config;
@@ -26,11 +26,20 @@ namespace IkCulling
         public static readonly ModConfigurationKey<bool> Enabled =
             new ModConfigurationKey<bool>("Enabled", "IkCulling Enabled.", () => true);
 
+        public static readonly ModConfigurationKey<bool> DisableAfkUser =
+            new ModConfigurationKey<bool>("DisableAfkUser", "Disable User not in the World.", () => true);
+
+        public static readonly ModConfigurationKey<bool> DisableIkWithoutUser =
+            new ModConfigurationKey<bool>("DisableIkWithoutUser", "Disable Ik's without active user.", () => true);
+
         public static readonly ModConfigurationKey<bool> AutoSaveConfig =
             new ModConfigurationKey<bool>("AutoSaveConfig", "If true the Config gets saved after every change.", () => true);
 
         public static readonly ModConfigurationKey<bool> UseUserScale =
             new ModConfigurationKey<bool>("UseUserScale", "Should user scale be used for Distance check.", () => false);
+
+        public static readonly ModConfigurationKey<bool> UseOtherUserScale =
+            new ModConfigurationKey<bool>("UseOtherUserScale", "Should the other user's scale be used for Distance check.", () => false);
 
         public static readonly ModConfigurationKey<float> Fov = new ModConfigurationKey<float>("Fov",
             "Field of view used for IkCulling, can be between 1 and -1.",
@@ -46,7 +55,10 @@ namespace IkCulling
                 () => 30);
 
         private static bool _enabled = true;
+        private static bool _disableAfkUser = true;
+        private static bool _disableIkWithoutUser = true;
         private static bool _useUserScale = false;
+        private static bool _useOtherUserScale = false;
         private static float _fov = 0.7f;
         private static float _minCullingRange = 4;
         private static float _maxViewRange = 30;
@@ -59,8 +71,11 @@ namespace IkCulling
                 List<ModConfigurationKey> keys = new List<ModConfigurationKey>();
                 keys.Add(ConfigFileExist);
                 keys.Add(Enabled);
+                keys.Add(DisableAfkUser);
+                keys.Add(DisableIkWithoutUser);
                 keys.Add(AutoSaveConfig);
                 keys.Add(UseUserScale);
+                keys.Add(UseOtherUserScale);
                 keys.Add(Fov);
                 keys.Add(MinCullingRange);
                 keys.Add(MaxViewRange);
@@ -105,10 +120,13 @@ namespace IkCulling
         private void RefreshConfigState(ConfigurationChangedEvent configurationChangedEvent = null)
         {
             _enabled = Config.GetValue(Enabled);
+            _disableAfkUser = Config.GetValue(DisableAfkUser);
             _useUserScale = Config.GetValue(UseUserScale);
+            _useOtherUserScale = Config.GetValue(UseOtherUserScale);
             _fov = Config.GetValue(Fov);
             _minCullingRange = Config.GetValue(MinCullingRange);
             _maxViewRange = Config.GetValue(MaxViewRange);
+
             if (Config.GetValue(AutoSaveConfig)||Equals(configurationChangedEvent?.Key, AutoSaveConfig))
             {
                 Config.Save(true);
@@ -124,6 +142,10 @@ namespace IkCulling
             {
                 try
                 {
+                    if (__instance.LocalUser.HeadDevice == HeadOutputDevice.Headless)
+                    {
+                        return false;
+                    }
                     if (!_enabled)
                     {
                         return true; //IkCulling is Disabled
@@ -134,13 +156,23 @@ namespace IkCulling
                         return false; //Ik is Disabled
                     }
 
-
                     if (__instance.IsUnderLocalUser)
                     {
                         return true; //Always Update local Ik
                     }
 
-                    float3 playerPos = __instance.Slot.World.LocalUserGlobalPosition;
+                    if (_disableIkWithoutUser && __instance.Slot.ActiveUser == null)
+                    {
+                        return false;
+                    }
+
+                    if (__instance.Slot.ActiveUser != null && _disableAfkUser && !__instance.Slot.ActiveUser.IsPresentInWorld)
+                    {
+                        return false;
+                    }
+                    //__instance.Slot.ActiveUser.i
+
+                    float3 playerPos = __instance.Slot.World.LocalUserViewPosition;
                     floatQ playerViewRot = __instance.Slot.World.LocalUserViewRotation;
                     float3 ikPos = __instance.ChestNode.Slot.GlobalPosition;
                     
@@ -153,6 +185,12 @@ namespace IkCulling
                     if (_useUserScale)
                     {
                         dist = dist / __instance.LocalUserRoot.GlobalScale;
+                    }
+
+                    if (_useOtherUserScale)
+                    {
+                        if (__instance.Slot.ActiveUser != null)
+                            dist = dist / __instance.Slot.ActiveUser.Root.GlobalScale;
                     }
 
                     float dot = MathX.Dot(dirToIk, viewDir);
@@ -179,5 +217,6 @@ namespace IkCulling
                 }
             }
         }
+
     }
 }
