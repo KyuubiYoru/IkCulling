@@ -131,8 +131,9 @@ namespace IkCulling
             {
                 try
                 {
-                    if (__instance.LocalUser.HeadDevice == HeadOutputDevice.Headless) return false;
                     if (!_enabled) return true; //IkCulling is Disabled
+
+                    if (__instance.LocalUser.HeadDevice == HeadOutputDevice.Headless) return false;
 
                     if (!__instance.Enabled) return false; //Ik is Disabled
 
