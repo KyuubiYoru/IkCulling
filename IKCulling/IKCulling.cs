@@ -55,7 +55,7 @@ namespace IkCulling
         private static float _maxViewRange = 30;
         public override string Name => "IkCulling";
         public override string Author => "KyuubiYoru";
-        public override string Version => "1.3.0";
+        public override string Version => "1.3.1";
         public override string Link => "https://github.com/KyuubiYoru/IkCulling";
 
 
