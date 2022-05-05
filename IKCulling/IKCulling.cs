@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using BaseX;
 using FrooxEngine;
 using FrooxEngine.FinalIK;
@@ -12,78 +13,62 @@ namespace IkCulling
     {
         public static ModConfiguration Config;
 
-        public static readonly ModConfigurationKey<bool> Enabled =
+        [AutoRegisterConfigKey] public static readonly ModConfigurationKey<bool> Enabled =
             new ModConfigurationKey<bool>("Enabled", "IkCulling Enabled.", () => true);
 
-        public static readonly ModConfigurationKey<bool> DisableAfkUser =
+        [AutoRegisterConfigKey] public static readonly ModConfigurationKey<bool> DisableAfkUser =
             new ModConfigurationKey<bool>("DisableAfkUser", "Disable User not in the World.", () => true);
 
-        public static readonly ModConfigurationKey<bool> DisableIkWithoutUser =
+        [AutoRegisterConfigKey] public static readonly ModConfigurationKey<bool> DisableIkWithoutUser =
             new ModConfigurationKey<bool>("DisableIkWithoutUser", "Disable Ik's without active user.", () => true);
 
-        public static readonly ModConfigurationKey<bool> AutoSaveConfig =
+        [AutoRegisterConfigKey] public static readonly ModConfigurationKey<bool> AutoSaveConfig =
             new ModConfigurationKey<bool>("AutoSaveConfig", "If true the Config gets saved after every change.",
                 () => true);
 
-        public static readonly ModConfigurationKey<bool> UseUserScale =
+        [AutoRegisterConfigKey] public static readonly ModConfigurationKey<int> MinUserCount =
+            new ModConfigurationKey<int>("MinUserCount", "Min amount of active users in the world to enable ik culling.",
+                () => 3);
+
+        [AutoRegisterConfigKey] public static readonly ModConfigurationKey<bool> UseUserScale =
             new ModConfigurationKey<bool>("UseUserScale", "Should user scale be used for Distance check.", () => false);
 
-        public static readonly ModConfigurationKey<bool> UseOtherUserScale =
+        [AutoRegisterConfigKey] public static readonly ModConfigurationKey<bool> UseOtherUserScale =
             new ModConfigurationKey<bool>("UseOtherUserScale",
                 "Should the other user's scale be used for Distance check.", () => false);
 
-        public static readonly ModConfigurationKey<float> Fov = new ModConfigurationKey<float>("Fov",
+        [AutoRegisterConfigKey] public static readonly ModConfigurationKey<float> Fov = new ModConfigurationKey<float>(
+            "Fov",
             "Field of view used for IkCulling, can be between 1 and -1.",
             () => 0.5f, false, v => v <= 1f && v >= -1f);
 
-        public static readonly ModConfigurationKey<float> MinCullingRange =
+        [AutoRegisterConfigKey] public static readonly ModConfigurationKey<float> MinCullingRange =
             new ModConfigurationKey<float>("MinCullingRange",
                 "Minimal range for IkCulling, useful in front of a mirror.",
                 () => 4);
 
-        public static readonly ModConfigurationKey<float> MaxViewRange =
+        [AutoRegisterConfigKey] public static readonly ModConfigurationKey<float> MaxViewRange =
             new ModConfigurationKey<float>("MaxViewRange", "Maximal view range where IkCulling is always enabled.",
                 () => 30);
+
 
         private static bool _enabled = true;
         private static bool _disableAfkUser = true;
         private static bool _disableIkWithoutUser = true;
+        private static int _minUserCount = 1;
         private static bool _useUserScale;
         private static bool _useOtherUserScale;
         private static float _fov = 0.7f;
         private static float _minCullingRange = 4;
         private static float _maxViewRange = 30;
+
+        private static ConditionalWeakTable<VRIKAvatar, FullBodyCalibrator> _calibrators =
+            new ConditionalWeakTable<VRIKAvatar, FullBodyCalibrator>();
+
         public override string Name => "IkCulling";
         public override string Author => "KyuubiYoru";
-        public override string Version => "1.3.1";
+        public override string Version => "1.4.0";
         public override string Link => "https://github.com/KyuubiYoru/IkCulling";
-
-
-        public override ModConfigurationDefinition GetConfigurationDefinition()
-        {
-            try
-            {
-                List<ModConfigurationKey> keys = new List<ModConfigurationKey>();
-                keys.Add(Enabled);
-                keys.Add(DisableAfkUser);
-                keys.Add(DisableIkWithoutUser);
-                keys.Add(AutoSaveConfig);
-                keys.Add(UseUserScale);
-                keys.Add(UseOtherUserScale);
-                keys.Add(Fov);
-                keys.Add(MinCullingRange);
-                keys.Add(MaxViewRange);
-
-
-                return DefineConfiguration(new Version(1, 0, 0), keys);
-            }
-            catch (Exception e)
-            {
-                Error(e.Message);
-                Error(e.StackTrace);
-                throw;
-            }
-        }
 
         public override void OnEngineInit()
         {
@@ -112,6 +97,7 @@ namespace IkCulling
             _enabled = Config.GetValue(Enabled);
             _disableAfkUser = Config.GetValue(DisableAfkUser);
             _disableIkWithoutUser = Config.GetValue(DisableIkWithoutUser);
+            _minUserCount = Config.GetValue(MinUserCount);
             _useUserScale = Config.GetValue(UseUserScale);
             _useOtherUserScale = Config.GetValue(UseOtherUserScale);
             _fov = Config.GetValue(Fov);
@@ -133,16 +119,20 @@ namespace IkCulling
                 {
                     if (!_enabled) return true; //IkCulling is Disabled
 
+                    if (_calibrators.TryGetValue(__instance, out _)) return true;
+                    
                     if (__instance.LocalUser.HeadDevice == HeadOutputDevice.Headless) return false;
 
                     if (!__instance.Enabled) return false; //Ik is Disabled
 
                     if (__instance.IsUnderLocalUser) return true; //Always Update local Ik
 
-                    if (_disableIkWithoutUser && __instance.Slot.ActiveUser == null) return false;
+                    if (_disableIkWithoutUser && !__instance.IsEquipped) return false;
 
                     if (__instance.Slot.ActiveUser != null && _disableAfkUser &&
                         !__instance.Slot.ActiveUser.IsPresentInWorld) return false;
+
+                    if (__instance.Slot.World.UserCount < _minUserCount) return true;
 
 
                     float3 playerPos = __instance.Slot.World.LocalUserViewPosition;
@@ -176,6 +166,28 @@ namespace IkCulling
                     Debug(e.Message);
                     Debug(e.StackTrace);
                     return true;
+                }
+            }
+        }
+
+        [HarmonyPatch(typeof(FullBodyCalibrator))]
+        public class FullBodyCalibratorPath
+        {
+            [HarmonyPostfix]
+            [HarmonyPatch("OnAttach")]
+            private static void OnAttachPostfix(FullBodyCalibrator __instance)
+            {
+                try
+                {
+                    Traverse traverse = Traverse.Create(__instance).Field("_platformBody").Field("_vrIkAvatar");
+                    SyncRef<VRIKAvatar> vrikAvatar = traverse.GetValue<SyncRef<VRIKAvatar>>();
+                    vrikAvatar.OnTargetChange += reference => _calibrators.Add(reference, null);
+                }
+                catch (Exception e)
+                {
+                    Debug("Error in OnAttachPostfix");
+                    Debug(e.Message);
+                    Debug(e.StackTrace);
                 }
             }
         }
