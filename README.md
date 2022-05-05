@@ -2,9 +2,6 @@
 
 A [NeosModLoader](https://github.com/zkxs/NeosModLoader) mod for [Neos VR](https://neos.com/) that disables the IK of Users who are behind you or far away.
 
-**Version 1.1.0 or higher needs NeosModLoader 1.7.0 or higher!** 
-
-
 
 ## Installation
 1. Install [NeosModLoader](https://github.com/zkxs/NeosModLoader).
